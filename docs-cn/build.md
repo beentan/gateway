@@ -1,120 +1,191 @@
-搭建Gateway环境
+搭建Manba环境
 ------------------------
-这个章节帮助你搭建Gateway环境
+这个章节帮助你搭建Manba环境
 
 # 准备
 ## Etcd
-Gateway目前支持Etcd作为元数据区的存储，所以需要一个Etcd环境，参考：[etcd environment](https://github.com/coreos/etcd)
+Manba目前支持Etcd作为元数据区的存储，所以需要一个Etcd环境，参考：[etcd environment](https://github.com/coreos/etcd)
 
-## Consul
-Gateway目前支持Consul作为元数据区的存储，所以需要一个Consul环境，参考：[consul environment](https://github.com/hashicorp/consul)
 
 ## Golang
-如果你希望从源码编译Gateway，你需要一个[golang 环境](https://github.com/golang/go)，必须使用`1.8`的版本。
+如果你希望从源码编译Manba，你需要一个[golang 环境](https://github.com/golang/go)，必须使用`1.11`及以上的版本。
 
 # 从源码编译
-执行如下命令：
+- 使用Makefile脚本
 
-```bash
-cd $GOPATH/src/github.com/fagongzi/gateway/cmd/proxy
-go build proxy.go
+  以下命令默认在项目根目录（即`$GOPATH/src/github.com/fagongzi/manba`）目录下执行。
 
-cd $GOPATH/src/github.com/fagongzi/gateway/cmd/admin
-go build admin.go
-```
+  - 编译适合当前系统的二进制文件
 
-# 运行 Gateway
-Gateway运行环境包含2个组件：`Admin` 和 `Proxy`
+  ```bash
+  make release_version='version string'
+  ```
 
-* Admin
-  后台管理系统，管理Gateway的元数据。
+  - 指定编译的二进制文件类型
+
+  ```bash
+  # Linux
+  make release release_version='version string'
+
+  # Darwin(mac osx)
+  make release_darwin release_version='version string'
+  ```
+
+  - 打包为docker镜像
+
+  ```bash
+  make docker release_version='version string'
+  ```
+
+  - 打包为docker镜像，且定制镜像内容
+
+  ```bash
+  # for demo, including etcd, proxy, apiserver, ui
+  make docker release_version='version string'
+
+  # only proxy
+  make docker release_version='version string' with=proxy
+
+  # only etcd
+  make docker release_version='version string' with=etcd
+
+  # apiserver with ui
+  make docker release_version='version string' with=apiserver
+  ```
+
+  - 更多使用说明
+
+  ```bash
+  make help
+  ```
+
+# Manba组件
+
+Manba运行环境包含2个组件：`ApiServer` 和 `Proxy`
+
+* ApiServer
+
+  可执行文件`manba-apiserver`，对外提供API管理元数据。
 
 * Proxy
-  Proxy是一个无状态的API代理，提供给终端用户直接访问。
 
-## 运行 Admin
-Admin是一个WEB应用，提供`JSON restful API`，web的静态资源在`$GOPATH/src/github.com/fagongzi/gateway/cmd/admin/public`，静态资源需要和Admin二进制程序处于一个目录。
+  可执行文件`manba-proxy`，Proxy是一个无状态的API代理，提供给终端用户直接访问。
+
+## ApiServer
+ApiServer对外提供GRPC的服务，用来管理Manba的元数据。
 
 ```bash
-$ ./admin --help
-Usage of $GOPATH/src/github.com/fagongzi/gateway/cmd/admin/admin:
+$ ./manba-apiserver --help
+Usage of ./manba-apiserver:
   -addr string
-        listen addr.(e.g. ip:port) (default ":8080")
-  -cpus int
-        use cpu nums (default 1)
-  -registry-addr string
-        registry address. (default "[ectd|consul]://127.0.0.1:8500")
-  -prefix string
-        node prefix. (default "/dev")
-  -pwd string
-        admin user pwd (default "admin")
-  -user string
-        admin user name (default "admin")
-```
-
-执行一下命令启动Admin:
-
-```bash
-./admin --addr=:8080  --registry-addr=ectd://etcdIP:etcdPort --prefix=dev 
-```
-启动后，Admin监听8080端口，你可以再浏览器上访问`http://127.0.0.1:8080`，默认的用户名和密码是`admin/admin`
-
-可以使用`prefix`参数隔离多个Gateway环境。
-
-## 运行 proxy
-You can get help info use:
-
-```bash
-$ ./proxy --help
-Usage of $GOPATH/src/github.com/fagongzi/gateway/cmd/proxy/proxy:
-  -config string
-        config file
-  -cpus int
-        use cpu nums (default 1)
+    	Addr: client entrypoint (default "127.0.0.1:9091")
+  -addr-store string
+    	Addr: store address (default "etcd://127.0.0.1:2379")
+  -crash string
+    	The crash log file. (default "./crash.log")
+  -discovery
+    	Publish apiserver service via discovery.
   -log-file string
-        which file to record log, if not set stdout to use.
+    	The external log file. Default log to console.
   -log-level string
-        log level. (default "info")
+    	The log level, default is info (default "info")
+  -namespace string
+    	The namespace to isolation the environment. (default "dev")
+  -publish-lease int
+    	Publish service lease seconds (default 10)
+  -publish-timeout int
+    	Publish service timeout seconds (default 30)
+  -service-prefix string
+    	The prefix for service name. (default "/services")
 ```
 
-Proxy启动以来一个JSON的配置文件，这个配置文件样例可以在`$GOPATH/src/github.com/fagongzi/gateway/cmd/proxy`目录下找到。
+`discovery`参数用来是否使用服务发现的方式发布ApiServer提供的对外接口
+`namespace`参数用来隔离多个环境，这个配置需要和对应的`Proxy`的`namespace`一致
 
-```json
-{
-    "addr": ":80", 
-    "mgrAddr": ":8081",
-    "registryAddr": [
-        "ectd://127.0.0.1:2379"
-    ],
-    "prefix": "/dev",
-    "filers": [
-        "analysis",
-        "rate-limiting",
-        "circuit-breake",
-        "http-access",
-        "head",
-        "xforward"
-    ],
-    "maxConns": 512,
-    "maxConnDuration": 10,
-    "maxIdleConnDuration": 10,
-    "readBufferSize": 4096,
-    "writeBufferSize": 4096,
-    "readTimeout": 30,
-    "writeTimeout": 30,
-    "maxResponseBodySize": 1048576,
-
-    "enablePPROF": false,
-    "pprofAddr": ""
-}
-```
-
-注意： Admin和Proxy必须使用统一的`ectd-prefix`参数。
-
-运行 proxy:
+## proxy
+Proxy是内部所有API的统一对外入口，也就是API统一接入层。
 
 ```bash
-./proxy --cpus=number of you cpu core ---config ./proxy.json --log-file ./proxy.log --log-level=info
+$ ./manba-proxy --help
+Usage of ./manba-proxy:
+  -addr string
+    	Addr: http request entrypoint (default "127.0.0.1:80")
+  -addr-pprof string
+    	Addr: pprof addr
+  -addr-rpc string
+    	Addr: manager request entrypoint (default "127.0.0.1:9091")
+  -addr-store string
+    	Addr: store of meta data, support etcd (default "etcd://127.0.0.1:2379")
+  -crash string
+    	The crash log file. (default "./crash.log")
+  -filter value
+    	Plugin(Filter): format is <filter name>[:plugin file path][:plugin config file path]
+  -limit-body int
+    	Limit(MB): MB for body size (default 10)
+  -limit-buf-read int
+    	Limit(bytes): Bytes for read buffer size (default 2048)
+  -limit-buf-write int
+    	Limit(bytes): Bytes for write buffer size (default 1024)
+  -limit-conn int
+    	Limit(count): Count of connection per backend server (default 64)
+  -limit-conn-idle int
+    	Limit(sec): Idle for backend server connections (default 30)
+  -limit-conn-keepalive int
+    	Limit(sec): Keepalive for backend server connections (default 60)
+  -limit-heathcheck int
+    	Limit: Count of heath check worker (default 1)
+  -limit-heathcheck-interval int
+    	Limit(sec): Interval for heath check (default 60)
+  -limit-timeout-read int
+    	Limit(sec): Timeout for read from backend servers (default 30)
+  -limit-timeout-write int
+    	Limit(sec): Timeout for write to backend servers (default 30)
+  -log-file string
+    	The external log file. Default log to console.
+  -log-level string
+    	The log level, default is info (default "info")
+  -namespace string
+    	The namespace to isolation the environment. (default "dev")
+  -ttl-proxy int
+    	TTL(secs): proxy (default 10)
+  -version
+      Show version info
 ```
 
-启动后，Proxy监听80端口，并且加载Etcd中的元数据，同时监听Ectd元数据的变化，并且实时更新。在第一次启动的时候，会有一些`Warn`的信息提示，这个是因为一开始Ectd（consul）中没有相关数据造成的，可以忽略。
+`namespace`参数用来隔离多个环境，这个配置需要和对应的`ApiServer`的`namespace`一致
+
+# 运行环境
+我们以三台etcd、一台ApiServer，三台Proxy的环境为例
+
+## 环境信息
+
+|组件|环境|
+| -------------|:-------------:|
+|etcd集群环境|192.168.1.100,192.168.1.101,192.168.1.102|
+|Proxy|192.168.1.200,192.168.1.201,192.168.1.202|
+|ApiServer|192.168.1.203|
+
+## 启动Proxy
+```bash
+./manba-proxy --addr=192.168.1.200:80 --addr-rpc=192.168.1.200:9091 --addr-store=etcd://192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379 --namespace=test
+```
+
+```bash
+./manba-proxy --addr=192.168.1.201:80 --addr-rpc=192.168.1.201:9091 --addr-store=etcd://192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379 --namespace=test
+```
+
+```bash
+./manba-proxy --addr=192.168.1.202:80 --addr-rpc=192.168.1.202:9091 --addr-store=etcd://192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379 --namespace=test
+```
+
+用户的API接入地址可以为：192.168.1.201:80、192.168.1.201:80、192.168.1.202:80其中任意一个
+
+## 启动ApiServer
+```bash
+./manba-apiserver --addr=192.168.1.203:9091 --addr-store=etcd://192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379 --discovery --namespace=test
+```
+
+## 调用ApiServer创建元信息
+[Gateway Restful API](./restful.md)
+
+[Gateway grpc客户端例子](../examples)

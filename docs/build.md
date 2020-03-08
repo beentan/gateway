@@ -1,113 +1,189 @@
-Build and run Gateway
+Gateway Environment Setup
 ------------------------
-This section help you build gateway environment.
+This chapter aims to help you set up Gateway environment.
 
-# prepare
+# Preparation
 ## Etcd
-Currently, Gateway use etcd store it's mete data, so you need a [etcd environment](https://github.com/coreos/etcd).
+Gateway currently supports Etcd as the storage of metadata. To set up etcd, please refer to [etcd environment](https://github.com/coreos/etcd)
 
-## Consul
-Currently, Gateway use consul store it's mete data, so you need a [consul environment](https://github.com/hashicorp/consul).
 
 ## Golang
-If you want to build gateway with source, you need a [golang environment](https://github.com/golang/go). 
+If you would like to compile Gateway from source code, you need a [Golang environment](https://github.com/golang/go). Go version `1.11` and above is required.
 
-# Build with source 
-Build gateway use commands as below：
+# Compiling from Source Code
+- Makefile
+
+  The following commands are executed under `$GOPATH/src/github.com/fagongzi/gateway`.
+
+  - Compiling binary file for the current OS.
+
+  ```bash
+  make release_version='version string'
+  ```
+
+  - Compiling binary file for a specific OS
+
+  ```bash
+  # Linux
+  make release release_version='version string'
+
+  # Darwin(Mac OS X)
+  make release_darwin release_version='version string'
+  ```
+
+  - Packaging project into a Docker image
+
+  ```bash
+  make docker release_version='version string'
+  ```
+
+  - Packing project into a Docker image with customized content
+
+  ```bash
+  # for demo, including etcd, proxy, apiserver, ui
+  make docker release_version='version string'
+
+  # only proxy
+  make docker release_version='version string' with=proxy
+
+  # only etcd
+  make docker release_version='version string' with=etcd
+
+  # apiserver with ui
+  make docker release_version='version string' with=apiserver
+  ```
+
+  - For more information on compiling
+
+  ```bash
+  make help
+  ```
+
+# Gateway Component
+Gateway has two components: `ApiServer` and `Proxy`.
+
+* ApiServer
+  ApiServer provides APIs to manage metadata.
+
+* Proxy
+  Proxy is a stateless API proxy which provides direct access to clients.
+
+## ApiServer
+ApiServer provides GRPC service to manage Gateway metadata.
 
 ```bash
-cd $GOPATH/src/github.com/fagongzi/gateway/cmd/proxy
-go build proxy.go
-
-cd $GOPATH/src/github.com/fagongzi/gateway/cmd/admin
-go build admin.go
-```
-
-# Run Gateway
-Gateway runtime has 2 components: admin & proxy. Admin is mete data manager system, proxy is a stateless http proxy.
-
-## Run admin
-Admin is web system, provide JSON restful API, web resource is in `$$GOPATH/src/github.com/fagongzi/gateway/cmd/admin/public` dir. You can get help info use:
-
-```bash
-$ ./admin --help
-Usage of xxx/src/github.com/fagongzi/gateway/cmd/admin/admin:
+$ ./apiserver --help
+Usage of ./apiserver:
   -addr string
-        listen addr.(e.g. ip:port) (default ":8080")
-  -cpus int
-        use cpu nums (default 1)
-  -registry-addr string
-        registry address. (default "[ectd|consul]://127.0.0.1:8500")
-  -prefix string
-        node prefix. (default "/dev")
-  -pwd string
-        admin user pwd (default "admin")
-  -user string
-        admin user name (default "admin")
+    	Addr: client entrypoint (default "127.0.0.1:9091")
+  -addr-store string
+    	Addr: store address (default "etcd://127.0.0.1:2379")
+  -crash string
+    	The crash log file. (default "./crash.log")
+  -discovery
+    	Publish apiserver service via discovery.
+  -log-file string
+    	The external log file. Default log to console.
+  -log-level string
+    	The log level, default is info (default "info")
+  -namespace string
+    	The namespace to isolation the environment. (default "dev")
+  -publish-lease int
+    	Publish service lease seconds (default 10)
+  -publish-timeout int
+    	Publish service timeout seconds (default 30)
+  -service-prefix string
+    	The prefix for service name. (default "/services")
 ```
 
-Than you can run admin use:
+`discovery` option is used to determine whether to use service discovery to publish external APIs provided by ApiServer.
+`namespace` option is used to isolate multiple environments. It has to be consistent with `namespace` in `Proxy`.
 
-```bash
-./admin --addr=:8080  --etcd-addr=ectd://etcdIP:etcdPort --prefix=dev 
-```
 
-It listen at 8080 port, you can you your web browser access `http://127.0.0.1:8080`, the input the user name and password to access admin system.
-
-## Run proxy
-You can get help info use:
+## proxy
+Proxy is the unified entrance of all internal APIs, which is the API access layer.
 
 ```bash
 $ ./proxy --help
-Usage of xxx/src/github.com/fagongzi/gateway/cmd/proxy/proxy:
-  -config string
-        config file
-  -cpus int
-        use cpu nums (default 1)
+Usage of ./proxy:
+  -addr string
+    	Addr: http request entrypoint (default "127.0.0.1:80")
+  -addr-pprof string
+    	Addr: pprof addr
+  -addr-rpc string
+    	Addr: manager request entrypoint (default "127.0.0.1:9091")
+  -addr-store string
+    	Addr: store of meta data, support etcd (default "etcd://127.0.0.1:2379")
+  -crash string
+    	The crash log file. (default "./crash.log")
+  -filter value
+    	Plugin(Filter): format is <filter name>[:plugin file path][:plugin config file path]
+  -limit-body int
+    	Limit(MB): MB for body size (default 10)
+  -limit-buf-read int
+    	Limit(bytes): Bytes for read buffer size (default 2048)
+  -limit-buf-write int
+    	Limit(bytes): Bytes for write buffer size (default 1024)
+  -limit-conn int
+    	Limit(count): Count of connection per backend server (default 64)
+  -limit-conn-idle int
+    	Limit(sec): Idle for backend server connections (default 30)
+  -limit-conn-keepalive int
+    	Limit(sec): Keepalive for backend server connections (default 60)
+  -limit-heathcheck int
+    	Limit: Count of heath check worker (default 1)
+  -limit-heathcheck-interval int
+    	Limit(sec): Interval for heath check (default 60)
+  -limit-timeout-read int
+    	Limit(sec): Timeout for read from backend servers (default 30)
+  -limit-timeout-write int
+    	Limit(sec): Timeout for write to backend servers (default 30)
   -log-file string
-        which file to record log, if not set stdout to use.
+    	The external log file. Default log to console.
   -log-level string
-        log level. (default "info")
+    	The log level, default is info (default "info")
+  -namespace string
+    	The namespace to isolation the environment. (default "dev")
+  -ttl-proxy int
+    	TTL(secs): proxy (default 10)
+  -version
+      Show version info
 ```
 
-Proxy use a json config file like this:
+`namespace` option is used to isolate multiple environments. It has to be consistent with `namespace` in `ApiServer`.
 
-```json
-{
-    "addr": ":80", 
-    "mgrAddr": ":8081",
-    "registryAddr": [
-        "ectd://127.0.0.1:2379"
-    ],
-    "prefix": "/dev",
-    "filers": [
-        "analysis",
-        "rate-limiting",
-        "circuit-breake",
-        "http-access",
-        "head",
-        "xforward"
-    ],
-    "maxConns": 512,
-    "maxConnDuration": 10,
-    "maxIdleConnDuration": 10,
-    "readBufferSize": 4096,
-    "writeBufferSize": 4096,
-    "readTimeout": 30,
-    "writeTimeout": 30,
-    "maxResponseBodySize": 1048576,
+# Running Environment
+We use 3 etcd servers, 1 ApiServer server, and 3 Proxy servers as an example.
 
-    "enablePPROF": false,
-    "pprofAddr": ""
-}
+## Info
+
+|Component|IP|
+| -------------|:-------------:|
+|etcd cluster|192.168.1.100,192.168.1.101,192.168.1.102|
+|Proxy|192.168.1.200,192.168.1.201,192.168.1.202|
+|ApiServer|192.168.1.203|
+
+## Starting Proxy
+```bash
+./proxy --addr=192.168.1.200:80 --addr-rpc=192.168.1.200:9091 --addr-store=etcd://192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379 --namespace=test
 ```
-
-Note: Admin and proxy must use same ectd address and ectd prefix.
-
-Run proxy:
 
 ```bash
-./proxy --cpus=number of you cpu core ---config ./proxy.json --log-file ./proxy.log --log-level=info
+./proxy --addr=192.168.1.201:80 --addr-rpc=192.168.1.201:9091 --addr-store=etcd://192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379 --namespace=test
 ```
 
-Than you can see proxy start at 80 port. And load mete data from ectd. At first time, there will be have some warn message, ingore these, because has no mete data in ectd(consul). 
+```bash
+./proxy --addr=192.168.1.202:80 --addr-rpc=192.168.1.202:9091 --addr-store=etcd://192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379 --namespace=test
+```
+
+API addresses available to users: 192.168.1.201:80, 192.168.1.201:80, 192.168.1.202:80
+
+## Starting ApiServer
+```bash
+./apiserver --addr=192.168.1.203:9091 --addr-store=etcd://192.168.1.100:2379,192.168.1.101:2379,192.168.1.102:2379 --discovery --namespace=test
+```
+
+## Use ApiServer to create metadata
+[Gateway Restful API](./restful.md)
+
+[Gateway grpc client example](../examples)

@@ -5,20 +5,21 @@ import (
 	"plugin"
 	"strings"
 
-	"github.com/fagongzi/gateway/pkg/conf"
 	"github.com/fagongzi/gateway/pkg/filter"
 )
 
 var (
 	// ErrUnknownFilter unknown filter error
-	ErrUnknownFilter = errors.New("unknow filter")
+	ErrUnknownFilter = errors.New("unknown filter")
 )
 
 const (
+	// FilterPrepare prepare filter
+	FilterPrepare = "PREPARE"
 	// FilterHTTPAccess access log filter
 	FilterHTTPAccess = "HTTP-ACCESS"
 	// FilterHeader header filter
-	FilterHeader = "HEAD" // process header fiter
+	FilterHeader = "HEADER" // process header fiter
 	// FilterXForward xforward fiter
 	FilterXForward = "XFORWARD"
 	// FilterBlackList blacklist filter
@@ -30,12 +31,20 @@ const (
 	// FilterRateLimiting limit filter
 	FilterRateLimiting = "RATE-LIMITING"
 	// FilterCircuitBreake circuit breake filter
-	FilterCircuitBreake = "CIRCUIT-BREAKE"
+	FilterCircuitBreake = "CIRCUIT-BREAKER"
 	// FilterValidation validation request filter
 	FilterValidation = "VALIDATION"
+	// FilterCaching caching filter
+	FilterCaching = "CACHING"
+	// FilterJWT jwt filter
+	FilterJWT = "JWT"
+	// FilterCross cross filter
+	FilterCross = "CROSS"
+	// FilterJSPlugin js plugin engine
+	FilterJSPlugin = "JS-ENGINE"
 )
 
-func newFilter(filterSpec *conf.FilterSpec) (filter.Filter, error) {
+func (p *Proxy) newFilter(filterSpec *FilterSpec) (filter.Filter, error) {
 	if filterSpec.External {
 		return newExternalFilter(filterSpec)
 	}
@@ -43,6 +52,8 @@ func newFilter(filterSpec *conf.FilterSpec) (filter.Filter, error) {
 	input := strings.ToUpper(filterSpec.Name)
 
 	switch input {
+	case FilterPrepare:
+		return newPrepareFilter(), nil
 	case FilterHTTPAccess:
 		return newAccessFilter(), nil
 	case FilterHeader:
@@ -61,12 +72,20 @@ func newFilter(filterSpec *conf.FilterSpec) (filter.Filter, error) {
 		return newCircuitBreakeFilter(), nil
 	case FilterValidation:
 		return newValidationFilter(), nil
+	case FilterCaching:
+		return newCachingFilter(p.cfg.Option.LimitBytesCaching, p.dispatcher.tw), nil
+	case FilterJWT:
+		return newJWTFilter(p.cfg.Option.JWTCfgFile)
+	case FilterCross:
+		return newCrossDomainFilter(p.cfg.Option.CrossCfgFile)
+	case FilterJSPlugin:
+		return p.jsEngine, nil
 	default:
 		return nil, ErrUnknownFilter
 	}
 }
 
-func newExternalFilter(filterSpec *conf.FilterSpec) (filter.Filter, error) {
+func newExternalFilter(filterSpec *FilterSpec) (filter.Filter, error) {
 	p, err := plugin.Open(filterSpec.ExternalPluginFile)
 	if err != nil {
 		return nil, err

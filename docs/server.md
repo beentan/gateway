@@ -1,44 +1,37 @@
 Server
 ------
-In Gateway, server is a real backend server that provide API implemention.
+In Gateway, a server refers to a real backend server.
 
-# Server fields
-* Server Addr
-  The backend server's IP and Port. The same IP And Port identified a uniq backend server.
+# Server Attributes
+## ID
+Unique Identifier
 
-* Server Check URL
-  The URL for server heath check.
+## Addr
+Format: "IP:PORT"
 
-* Server Check URL Responsed Body
-  The check url expect response value, if not set, proxy only check http status code is 200.
+## Protocol
+API Protocol. Currently only support HTTP
 
-* Server Check Timeout
-  Timeout of backend server response.
+## Weight
+Valid only if the load balance strategy is Weighted Round Robin
 
-* Server Check Duration
-  Duration of heath check.
+## MaxQPS
+Maximum QPS supported by server. Used to Control Traffic. Gateway uses the Token Bucket Algorithm, restricting traffic by MaxQPS, thus protecting backend servers from overload.
 
-* Server Max QPS
-  Used for rate limiting, over this value, proxy will reject request.
+## HealthCheck (Optional)
+Health check mechanism, currently supporting HTTP check, response status code and response body. If not set, the server's health check becomes external responsibility and Gateway always assumes that this server is healthy.
 
-* Server Half To Open Seconds
-  It's a circuit breaker attrbutes, how many seconds that half-open status convert to open status.
+## CircuitBreaker (Optional)
+Backend server circuit break status:
 
-* Server Half Traffic Rate
-  It's a circuit breaker attrbutes, at half-open status, how many rate of traffic will passed from proxy, other will reject.
+* Open
 
-* Server To Close Count
-  It's a circuit breaker attrbutes, number of continuous occur error. Over this value will convert to closed status, in closed status proxy will reject all request.
+  Normal. All traffic in. When Gateway find the failed requests to all requests ratio reach a certain threshold, CircuitBreaker switches from Open to Close.
 
-# CRUD
-# Create
-You can create a server use admin. Once a server created, all proxy will add it to check tasks, after heath, this server will be moved to proxy's available servers list.
+* Half
 
-# Update
-You can update server's infomation at admin system. Once server has been updated, all proxy will update there memory immidately. 
+  Attempt to recover. Gateway tries to direct a certain percentage of traffic to the server and observe the result. If the expectation is met, CircuitBreaker switches to Open. If not, Close.
 
-# Delete
-You can delete a server at admin system. Once server has been deleted, all proxy will delete it immidately. 
+* Close
 
-# Bind
-Server will not received traffic until it binded a cluster. So you must bind server with a cluster.
+  Gateway does not direct any traffic to this backend server. When the time threshold is reached, Gateway automatically tries to recover by switching to Half.

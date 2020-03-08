@@ -1,37 +1,37 @@
 Server
 ------
-在Gateway中，一个Server对应一个真实存在的后端Server。
+在Manba中，一个Server对应一个真实存在的后端Server。
 
-# Server 属性
-* Server Addr
-  Server Addr由后端Server的`IP:PORT`组成。
+# Server属性
+## ID
+Server ID，唯一标识。
 
-* Server Check URL
-  健康检查后端URL
+## Addr
+Server地址，格式为："IP:PORT"。
 
-* Server Check URL Responsed Body
-  健康检查期望返回的HTTP Body字串，如果不设置，仅仅检查返回状态码为`200`
+## Protocol
+Server的接口协议，目前支持HTTP。
 
-* Server Check Timeout
-  健康检查单次请求超时时间，超出这个时间后端Server不响应，这个后端Server会被标记为不可用。知道下次健康检查通过，会被重新标记为可用。
+## Weight
+Weight 服务器的权重（当该服务器所属的集群负载方式是权重轮询时则需要配置）
 
-* Server Check Duration
-  健康检查间隔
+## MaxQPS
+Server能够支持的最大QPS，用于流控。Manba采用令牌桶算法，根据QPS限制流量，保护后端Server被压垮。
 
-* Server Max QPS
-  后端Server的QPS，超过这个QPS的请求会被Proxy直接拒绝。用于流控。
+## HealthCheck（可选）
+Server的健康检查机制，目前支持HTTP的协议检查，支持检查返回状态码以及返回内容。如果没有设置，认为这个Server的健康检查交给外部，Manba永久认为这个Server是健康的。
 
-* Server Half To Open Seconds
-  熔断机制中从半打开状态转换到打开状态的时间，单位秒。
+## CircuitBreaker（可选）
+熔断器，设置后端Server的熔断规则。熔断器分为3个状态：
 
-* Server Half Traffic Rate
-  熔断机制中，处于半打开状态的时候，多少比例的流量请求会被正常转发，剩余的流量直接拒绝。
+* Open
 
-* Server To Close Count
-  熔断机制中，设置连续失败多少次，熔断状态从正常转换到关闭。
+  Open状态，正常状态，Manba放入全部流量。当Manba发现失败的请求比例达到了设置的规则，熔断器会把状态切换到Close状态
 
-# 增删改查
-对于Server的增删改查操作，所有的Proxy都会通过Etcd的watch机制自动感知，并且实时生效。**注意，当一个Server和Cluster绑定时，不能被删除**
+* Half
 
-# 绑定
-在Gateway中，Server并不能直接接受流量，必须和Cluster绑定才能被Proxy分发流量。
+  Half状态，尝试恢复的状态。在这个状态下，Manba会尝试放入一定比例的流量，然后观察这些流量的请求的情况，如果达到预期就把状态转换为Open状态，如果没有达到预期，恢复成Close状态
+
+* Close
+
+  Close状态，在这个状态下，Manba禁止任何流量进入这个后端Server，在达到指定的阈值时间后，Manba自动尝试切换到Half状态，尝试恢复。
